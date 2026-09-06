@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>상윤이를 위한 스페셜 에디션</title>
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+        body {
+            margin: 0; padding: 10px; background: #fdf2f8; font-family: 'Jua', sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh;
+            overflow: hidden; /* 스와이프 시 화면 스크롤 방지 */
+        }
+        #stage-banner {
+            position: fixed; top: 35%; left: 50%; transform: translate(-50%, -50%) scale(0);
+            background: linear-gradient(135deg, #f472b6, #db2777); color: white;
+            padding: 15px 30px; border-radius: 20px; font-size: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2); box-shadow: 0 10px 30px rgba(219,39,119,0.4);
+            z-index: 1000; pointer-events: none;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.4s ease;
+            opacity: 0; text-align: center; white-space: nowrap;
+        }
+        #stage-banner.show { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        #stage-banner.boss-banner { background: linear-gradient(135deg, #ef4444, #b91c1c); box-shadow: 0 10px 30px rgba(185,28,28,0.5); }
+
+        #game-wrapper { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 10px; }
+        
+        canvas {
+            width: 100%; max-width: 400px; height: auto; aspect-ratio: 1/1;
+            background: #ffffff; border: 4px solid #f472b6; border-radius: 20px;
+            box-shadow: 0 8px 20px rgba(244,114,182,0.25); cursor: crosshair;
+            touch-action: none; /* 브라우저 기본 터치 제스처 무력화 (스와이프 전용) */
+        }
+
+        #ui-container { width: 100%; display: flex; flex-direction: column; gap: 8px; }
+        .panel { background: white; border: 3px solid #fbcfe8; border-radius: 15px; padding: 10px 12px; }
+        .panel h3 { margin: 0 0 6px 0; color: #db2777; font-size: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .panel p { margin: 3px 0; color: #4b5563; font-size: 13px; }
+        
+        /* HP/EXP 바 스타일 */
+        .bar-container { width: 100%; background: #fee2e2; height: 12px; border-radius: 6px; overflow: hidden; margin-top: 3px; border: 1px solid #fca5a5; }
+        #hp-bar { width: 100%; height: 100%; background: #ef4444; transition: width 0.2s; }
+        
+        #log {
+            height: 65px; overflow-y: auto; font-size: 12px; color: #374151; line-height: 1.3;
+            background: #fff1f2; padding: 6px; border-radius: 8px; border: 1px solid #fbcfe8;
+        }
+        .btn-group { display: flex; gap: 8px; }
+        .btn-group button {
+            flex: 1; padding: 10px; border: none; border-radius: 12px;
+            font-family: 'Jua', sans-serif; font-size: 13px; cursor: pointer; color: white;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        #btn-shop { background: linear-gradient(135deg, #34d399, #059669); }
+        #btn-reset { background: linear-gradient(135deg, #f87171, #dc2626); }
+    </style>
+</head>
+<body>
+
+    <div id="stage-banner">✨ 제 1 스테이지 ✨</div>
+
+    <!-- 이름 입력 모달 -->
+    <div id="name-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); justify-content:center; align-items:center; z-index:100; padding:20px;">
+        <div style="background:white; padding:25px; border-radius:20px; border:3px solid #f472b6; text-align:center; width:100%; max-width:280px;">
+            <h3 style="color:#db2777; margin-top:0; font-size:17px;">💖 상윤이를 위한 스페셜 에디션</h3>
+            <p style="font-size:12px; color:#6b7280; margin-bottom:12px;">이름을 써주세요</p>
+            <input type="text" id="player-name-input" placeholder="이름 입력..." style="width:100%; padding:9px; border:2px solid #fbcfe8; border-radius:10px; font-family:'Jua', sans-serif; font-size:14px; text-align:center; margin-bottom:12px; outline:none;">
+            <button onclick="savePlayerName()" style="width:100%; padding:10px; background:linear-gradient(135deg, #f472b6, #fb7185); color:white; border:none; border-radius:10px; font-family:'Jua', sans-serif; font-size:14px; cursor:pointer;">모험 시작! 🚀</button>
+        </div>
+    </div>
+
+    <div id="game-wrapper">
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+        <div id="ui-container">
+            <div class="panel">
+                <h3>💖 <span id="display-name">용사</span> <span id="stage-info" style="font-size:12px; color:#db2777;">Stage 1</span></h3>
+                <p>LV: <span id="level">0</span> | EXP: <span id="exp">0</span>/<span id="maxExp">100</span></p>
+                <p>HP: <span id="hp">100</span>/<span id="maxHp">100</span> | ATK: <span id="atk">10</span></p>
+                <div class="bar-container"><div id="hp-bar"></div></div>
+                <p style="margin-top:5px;">GOLD: <span id="gold">0</span> G</p>
+            </div>
+            <div class="panel">
+                <h3>✨ 실시간 전투 로그</h3>
+                <div id="log">화면을 <strong>슬라이드(스와이프)</strong>해 이동하고, <strong>몬스터를 터치</strong>해 공격하세요!</div>
+            </div>
+
+            <div class="panel btn-group">
+                <button id="btn-shop" onclick="toggleShop()">🛒 상점</button>
+                <button id="btn-reset" onclick="clearSaveData()">🔄 리셋</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 상점 모달 -->
+    <div id="shop-modal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:white; padding:20px; border:3px solid #f472b6; border-radius:20px; font-family:'Jua', sans-serif; text-align:center; z-index:10; width:90%; max-width:280px;">
+        <h3 style="color:#db2777; margin-top:0;">🛒 요정의 생존 상점</h3>
+        <p style="font-size:12px; margin-bottom:12px; color:#4b5563;">몬스터가 세졌으니 스펙을 올리자!</p>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+            <button onclick="buyAtkUpgrade()" style="padding:10px; background:#f472b6; color:white; border:none; border-radius:10px; cursor:pointer; font-family:'Jua', sans-serif;">⚔️ 공격력 강화 (+5) - 30 G</button>
+            <button onclick="buyHpPotion()" style="padding:10px; background:#34d399; color:white; border:none; border-radius:10px; cursor:pointer; font-family:'Jua', sans-serif;">🧪 HP 풀피 회복 - 20 G</button>
+            <button onclick="toggleShop()" style="padding:7px; background:#9ca3af; color:white; border:none; border-radius:10px; cursor:pointer; font-family:'Jua', sans-serif;">닫기</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const TILE_SIZE = 40, COLS = 10, ROWS = 10;
+        
+        let player = { name: "상윤", stage: 1, phase: 'normal', gridX: 5, gridY: 5, pixelX: 200, pixelY: 200, hp: 100, maxHp: 100, atk: 10, level: 0, exp: 0, maxExp: 100, gold: 0 };
+        const funnyInsults = ["상윤아, 도망치지 말고 맞서 싸워봐!", "몬스터 움직임에 영혼까지 털리는 중 ㅋㅋ", "원 터치 사망 방지! 간신히 살았다!"];
+
+        function saveGameData() { localStorage.setItem("sangyoon_rpg_special", JSON.stringify(player)); }
+        function clearSaveData() { localStorage.removeItem("sangyoon_rpg_special"); alert("리셋 완료!"); location.reload(); }
+        function savePlayerName() {
+            let val = document.getElementById("player-name-input").value.trim();
+            if(val) player.name = val;
+            document.getElementById("name-modal").style.display = "none";
+            saveGameData(); updateUI();
+            addLog(`🔥 [${player.name}] 상윤이를 위한 스페셜 에디션 진입!`);
+        }
+
+        window.addEventListener("DOMContentLoaded", () => {
+            let saved = localStorage.getItem("sangyoon_rpg_special");
+            if(saved) {
+                try {
+                    let d = JSON.parse(saved);
+                    Object.assign(player, d);
+                    document.getElementById("name-modal").style.display = "none";
+                    updateUI(); addLog(`📂 데이터 복구 완료! (Stage ${player.stage})`);
+                } catch(e) { localStorage.removeItem("sangyoon_rpg_special"); document.getElementById("name-modal").style.display = "flex"; }
+            } else { document.getElementById("name-modal").style.display = "flex"; }
+        });
+
+        let monsters = [];
+        function spawnMonsters() {
+            monsters = [];
+            let pm = 1 + (player.stage - 1) * 0.3;
+            if(player.phase === 'boss') {
+                monsters.push({ 
+                    gridX: 5, gridY: 3, pixelX: 200, pixelY: 120,
+                    hp: Math.floor(300*pm), maxHp: Math.floor(300*pm), atk: Math.floor(15*pm), 
+                    gold: 200*player.stage, exp: 2000, type: 'boss', name: `🔥 [제 ${player.stage} 스테이지 왕밤톨 대마왕]`,
+                    moveTimer: 0
+                });
+            } else {
+                let types = [
+                    { type: 'slime', name: '약올리는 핑크 슬라임', hp: Math.floor(40*pm), maxHp: Math.floor(40*pm), atk: Math.floor(6*pm), gold: 20*player.stage, exp: 40*player.stage },
+                    { type: 'goblin', name: '날렵한 꼬마 고블린', hp: Math.floor(60*pm), maxHp: Math.floor(60*pm), atk: Math.floor(10*pm), gold: 35*player.stage, exp: 60*player.stage }
+                ];
+                for(let i=0; i<4; i++) {
+                    let rx, ry;
+                    do { rx = Math.floor(Math.random()*COLS); ry = Math.floor(Math.random()*ROWS); } while(rx === player.gridX && ry === player.gridY);
+                    let t = types[Math.floor(Math.random()*types.length)];
+                    monsters.push({ 
+                        gridX: rx, gridY: ry, pixelX: rx * TILE_SIZE, pixelY: ry * TILE_SIZE,
+                        hp: t.hp, maxHp: t.maxHp, atk: t.atk, gold: t.gold, exp: t.exp, 
+                        type: t.type, name: t.name, moveTimer: Math.random() * 100 
+                    });
+                }
+            }
+        }
+        spawnMonsters();
+
+        let isMoving = false;
+        function addLog(msg) { let l = document.getElementById("log"); l.innerHTML += `<br>${msg}`; l.scrollTop = l.scrollHeight; }
+        
+        function updateUI() {
+            document.getElementById("display-name").innerText = player.name;
+            document.getElementById("stage-info").innerText = player.phase === 'boss' ? `Stage ${player.stage} [보스]` : `Stage ${player.stage}`;
+            document.getElementById("level").innerText = player.level;
+            document.getElementById("exp").innerText = player.exp;
+            document.getElementById("maxExp").innerText = player.maxExp;
+            document.getElementById("hp").innerText = player.hp;
+            document.getElementById("maxHp").innerText = player.maxHp;
+            document.getElementById("atk").innerText = player.atk;
+            document.getElementById("gold").innerText = player.gold;
+            
+            let hpPercent = Math.max(0, (player.hp / player.maxHp) * 100);
+            document.getElementById("hp-bar").style.width = hpPercent + "%";
+        }
+
+        function showStageBanner(txt, boss=false) {
+            let b = document.getElementById("stage-banner");
+            b.innerText = txt; b.className = boss ? "boss-banner show" : "show";
+            setTimeout(() => b.className = "", 2500);
+        }
+
+        function movePlayer(dx, dy) {
+            if(isMoving) return;
+            let nx = player.gridX + dx, ny = player.gridY + dy;
+            if(nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS) {
+                player.gridX = nx; player.gridY = ny; isMoving = true;
+            }
+        }
+
+        // 🌟 슬라이드(스와이프) 제스처 인식 로직 추가!
+        let touchStartX = 0, touchStartY = 0;
+        canvas.addEventListener("touchstart", (e) => {
+            if (e.touches.length === 1) {
+                touchStartX = e.touches[0].clientX;
+                touchStartY = e.touches[0].clientY;
+            }
+        }, {passive: true});
+
+        canvas.addEventListener("touchend", (e) => {
+            if (e.changedTouches.length === 1) {
+                let diffX = e.changedTouches[0].clientX - touchStartX;
+                let diffY = e.changedTouches[0].clientY - touchStartY;
+                let threshold = 30; // 이동으로 인정할 최소 슬라이드 거리
+
+                // 단순 터치(클릭)인 경우 -> 몬스터 공격 판정
+                if (Math.abs(diffX) < threshold && Math.abs(diffY) < threshold) {
+                    const rect = canvas.getBoundingClientRect();
+                    const clickX = touchStartX - rect.left;
+                    const clickY = touchStartY - rect.top;
+
+                    for (let m of monsters) {
+                        if (m.hp > 0) {
+                            let mCenterX = m.pixelX + TILE_SIZE / 2;
+                            let mCenterY = m.pixelY + TILE_SIZE / 2;
+                            let dist = Math.hypot(clickX - mCenterX, clickY - mCenterY);
+
+                            if (dist < 35) {
+                                let gridDist = Math.abs(player.gridX - m.gridX) + Math.abs(player.gridY - m.gridY);
+                                if (gridDist > 2) {
+                                    addLog(`⚠️ ${m.name}에게 너무 멉니다! 가까이 다가가서 터치하세요!`);
+                                    return;
+                                }
+
+                                m.hp -= player.atk;
+                                addLog(`💥 콩! <strong>${m.name}</strong>을(를) 터치해 ${player.atk} 피해를 줬다!`);
+
+                                if (m.hp <= 0) {
+                                    winBattle(m);
+                                } else {
+                                    player.hp -= m.atk;
+                                    addLog(`💧 으악! 반격으로 ${m.atk} 피해를 입었다! 정신 차려!`);
+                                    updateUI();
+                                    if (player.hp <= 0) gameOver();
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    return;
+                }
+
+                // 슬라이드 방향 판정 (가로 vs 세로)
+                if (Math.abs(diffX) > Math.abs(diffY)) {
+                    if (diffX > 0) movePlayer(1, 0);   // 우측 슬라이드
+                    else movePlayer(-1, 0);            // 좌측 슬라이드
+                } else {
+                    if (diffY > 0) movePlayer(0, 1);   // 아래 슬라이드
+                    else movePlayer(0, -1);            // 위 슬라이드
+                }
+            }
+        }, {passive: true});
+
+        // PC 환경을 위한 마우스 드래그(스와이프) 지원
+        let mouseStartX = 0, mouseStartY = 0, isMouseDown = false;
+        canvas.addEventListener("mousedown", (e) => {
+            mouseStartX = e.clientX;
+            mouseStartY = e.clientY;
+            isMouseDown = true;
+        });
+
+        canvas.addEventListener("mouseup", (e) => {
+            if (!isMouseDown) return;
+            isMouseDown = false;
+            let diffX = e.clientX - mouseStartX;
+            let diffY = e.clientY - mouseStartY;
+            let threshold = 30;
+
+            if (Math.abs(diffX) < threshold && Math.abs(diffY) < threshold) {
+                // 단순 클릭 시 몬스터 공격
+                const rect = canvas.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const clickY = e.clientY - rect.top;
+
+                for (let m of monsters) {
+                    if (m.hp > 0) {
+                        let mCenterX = m.pixelX + TILE_SIZE / 2;
+                        let mCenterY = m.pixelY + TILE_SIZE / 2;
+                        let dist = Math.hypot(clickX - mCenterX, clickY - mCenterY);
+
+                        if (dist < 35) {
+                            let gridDist = Math.abs(player.gridX - m.gridX) + Math.abs(player.gridY - m.gridY);
+                            if (gridDist > 2) {
+                                addLog(`⚠️ ${m.name}에게 너무 멉니다!`);
+                                return;
+                            }
+                            m.hp -= player.atk;
+                            addLog(`💥 콩! <strong>${m.name}</strong>에게 ${player.atk} 피해!`);
+                            if (m.hp <= 0) winBattle(m);
+                            else {
+                                player.hp -= m.atk;
+                                addLog(`💧 반격으로 ${m.atk} 피해를 입었다!`);
+                                updateUI();
+                                if (player.hp <= 0) gameOver();
+                            }
+                            break;
+                        }
+                    }
+                }
+                return;
+            }
+
+            if (Math.abs(diffX) > Math.abs(diffY)) {
+                if (diffX > 0) movePlayer(1, 0);
+                else movePlayer(-1, 0);
+            } else {
+                if (diffY > 0) movePlayer(0, 1);
+                else movePlayer(0, -1);
+            }
+        });
+
+        function updateMonstersAI() {
+            for (let m of monsters) {
+                if (m.hp > 0) {
+                    m.moveTimer++;
+                    if (m.moveTimer > 120) {
+                        m.moveTimer = 0;
+                        let dirs = [{dx:0, dy:-1}, {dx:0, dy:1}, {dx:-1, dy:0}, {dx:1, dy:0}];
+                        let d = dirs[Math.floor(Math.random() * dirs.length)];
+                        let nx = m.gridX + d.dx;
+                        let ny = m.gridY + d.dy;
+                        if (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS) {
+                            m.gridX = nx;
+                            m.gridY = ny;
+                        }
+                    }
+
+                    let targetX = m.gridX * TILE_SIZE;
+                    let targetY = m.gridY * TILE_SIZE;
+                    m.pixelX += (targetX - m.pixelX) * 0.2;
+                    m.pixelY += (targetY - m.pixelY) * 0.2;
+
+                    if (player.gridX === m.gridX && player.gridY === m.gridY && Math.random() < 0.02) {
+                        player.hp -= Math.floor(m.atk / 2);
+                        addLog(`🔥 몸싸움 발생! 몬스터에게 밟혀 체력이 깎인다!`);
+                        updateUI();
+                        if (player.hp <= 0) gameOver();
+                    }
+                }
+            }
+        }
+
+        function updatePlayerPosition() {
+            let tx = player.gridX * TILE_SIZE, ty = player.gridY * TILE_SIZE;
+            if(player.pixelX !== tx || player.pixelY !== ty) {
+                player.pixelX += (tx - player.pixelX) * 0.3;
+                player.pixelY += (ty - player.pixelY) * 0.3;
+                if(Math.abs(tx - player.pixelX) < 0.5) player.pixelX = tx;
+                if(Math.abs(ty - player.pixelY) < 0.5) player.pixelY = ty;
+            } else if(isMoving) { isMoving = false; checkStageClear(); }
+        }
+
+        function checkStageClear() {
+            let cleared = true;
+            for(let m of monsters) {
+                if(m.hp > 0) { cleared = false; break; }
+            }
+            if(cleared) {
+                if(player.phase === 'normal') {
+                    player.phase = 'boss';
+                    showStageBanner(`🔥 경고! 제 ${player.stage} 스테이지 대마왕 출현! 🔥`, true);
+                    addLog(`⚠️ 모든 몬스터 소탕 완료! <strong>제 ${player.stage} 스테이지 보스룸</strong> 강림!`);
+                } else {
+                    player.stage++; player.phase = 'normal';
+                    showStageBanner(`✨ 제 ${player.stage} 스테이지 진입! ✨`);
+                    let funny = funnyInsults[Math.floor(Math.random()*funnyInsults.length)];
+                    addLog(`🎉 보스 격파 성공! ${funny}`);
+                }
+                spawnMonsters(); saveGameData();
+            }
+        }
+
+        function winBattle(m) {
+            addLog(`🎉 <strong>${m.name} 처치 성공!</strong> (+EXP ${m.exp}, +G ${m.gold})`);
+            player.exp += m.exp; player.gold += m.gold;
+            
+            while(player.exp >= player.maxExp) {
+                player.exp -= player.maxExp; player.level++;
+                player.maxExp = Math.floor(player.maxExp * 1.4);
+                player.maxHp += 35; player.hp = player.maxHp; player.atk += 8;
+                addLog(`🌟 <strong>레벨 업!</strong> LV.${player.level} 달성! 이제 더 세졌다!`);
+            }
+            updateUI(); checkStageClear(); saveGameData();
+        }
+
+        function gameOver() {
+            addLog(`💀 <strong>체력이 0이 되었다... 기절! 게임 오버!</strong>`);
+            updateUI(); isMoving = true;
+            localStorage.removeItem("sangyoon_rpg_special");
+        }
+
+        function toggleShop() {
+            let s = document.getElementById("shop-modal");
+            s.style.display = s.style.display === "none" ? "block" : "none";
+        }
+        function buyAtkUpgrade() {
+            if(player.gold >= 30) { player.gold -= 30; player.atk += 5; addLog("⚔️ 공격력 펌핑 완료! (+ATK 5)"); updateUI(); saveGameData(); }
+            else addLog("💰 골드가 모자란다! 몬스터를 더 터치해라!");
+        }
+        function buyHpPotion() {
+            if(player.gold >= 20) { player.gold -= 20; player.hp = player.maxHp; addLog("🧪 포션 원샷! HP 완전 회복!"); updateUI(); saveGameData(); }
+            else addLog("💰 골드가 모자란다!");
+        }
+
+        function drawSlime(x,y, hp, maxHp) {
+            ctx.fillStyle = "#86efac"; ctx.beginPath(); ctx.arc(x+20, y+25, 13, Math.PI, 0, false); ctx.lineTo(x+33, y+35); ctx.quadraticCurveTo(x+20, y+38, x+7, y+35); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = "#065f46"; ctx.fillRect(x+13, y+20, 3, 3); ctx.fillRect(x+24, y+20, 3, 3);
+            drawMonsterHp(x, y, hp, maxHp);
+        }
+        function drawGoblin(x,y, hp, maxHp) {
+            ctx.fillStyle = "#facc15"; ctx.beginPath(); ctx.arc(x+20, y+22, 11, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "#ca8a04"; ctx.beginPath(); ctx.moveTo(x+9, y+18); ctx.lineTo(x+3, y+12); ctx.lineTo(x+11, y+21); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(x+31, y+18); ctx.lineTo(x+37, y+12); ctx.lineTo(x+29, y+21); ctx.fill();
+            ctx.fillStyle = "#78350f"; ctx.fillRect(x+13, y+18, 3, 2); ctx.fillRect(x+24, y+18, 3, 2);
+            drawMonsterHp(x, y, hp, maxHp);
+        }
+        function drawBoss(x,y, hp, maxHp) {
+            ctx.fillStyle = "#f43f5e"; ctx.beginPath(); ctx.arc(x+20, y+22, 16, Math.PI, 0, false); ctx.lineTo(x+36, y+36); ctx.quadraticCurveTo(x+20, y+40, x+4, y+36); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = "#fbbf24"; ctx.fillRect(x+14, y+2, 12, 6);
+            ctx.fillStyle = "#ffffff"; ctx.fillRect(x+10, y+18, 5, 5); ctx.fillRect(x+25, y+18, 5, 5);
+            ctx.fillStyle = "#000000"; ctx.fillRect(x+12, y+20, 2, 2); ctx.fillRect(x+27, y+20, 2, 2);
+            drawMonsterHp(x, y, hp, maxHp, true);
+        }
+        function drawMonsterHp(x, y, hp, maxHp, isBoss=false) {
+            let w = isBoss ? 40 : 30;
+            let bx = isBoss ? x : x + 5;
+            ctx.fillStyle = "#000000"; ctx.fillRect(bx, y - 6, w, 4);
+            ctx.fillStyle = "#22c55e"; ctx.fillRect(bx, y - 6, w * (hp / maxHp), 4);
+        }
+        function drawPlayer(x,y) {
+            ctx.fillStyle = "#60a5fa"; ctx.fillRect(x+10, y+15, 20, 20);
+            ctx.fillStyle = "#fde047"; ctx.fillRect(x+12, y+6, 16, 12);
+            ctx.fillStyle = "#94a3b8"; ctx.fillRect(x+30, y+12, 4, 15);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = "#fae8ff";
+            for(let i=0; i<=canvas.width; i+=TILE_SIZE) {
+                ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,canvas.height); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(canvas.width,i); ctx.stroke();
+            }
+            for(let m of monsters) {
+                if(m.hp > 0) {
+                    if(m.type === 'slime') drawSlime(m.pixelX, m.pixelY, m.hp, m.maxHp);
+                    else if(m.type === 'goblin') drawGoblin(m.pixelX, m.pixelY, m.hp, m.maxHp);
+                    else if(m.type === 'boss') drawBoss(m.pixelX, m.pixelY, m.hp, m.maxHp);
+                }
+            }
+            drawPlayer(player.pixelX, player.pixelY);
+        }
+
+        function gameLoop() { 
+            updatePlayerPosition(); 
+            updateMonstersAI();
+            draw(); 
+            requestAnimationFrame(gameLoop); 
+        }
+
+        updateUI(); 
+        gameLoop();
+    </script>
+</body>
+</html>
